@@ -1,0 +1,8 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+plugins: anyio-4.14.1
+collecting ... collected 0 items
+
+============================ no tests ran in 0.05s =============================
