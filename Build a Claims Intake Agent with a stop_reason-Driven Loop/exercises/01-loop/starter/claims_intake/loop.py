@@ -118,4 +118,47 @@ def run(
         # Case 3: anything else
         #   Raise UnexpectedStopReason naming the turn and the offending stop_reason.
         #   Do NOT silently retry, do NOT guess, do NOT treat max_tokens as success.
-        raise NotImplementedError("Exercise 1: implement the stop_reason triage")
+# Build a trace record for this turn and write it.
+        record = {
+            "turn": turn,
+            "stop_reason": response.stop_reason,
+            "tool_calls": [
+                {"id": b.id, "name": b.name, "input": dict(b.input)}
+                for b in response.content
+                if getattr(b, "type", None) == "tool_use"
+            ],
+            "latency_ms": round(latency_ms, 1),
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+        tracer.write(record)
+
+        # Triage on response.stop_reason.
+        if response.stop_reason == "end_turn":
+            working_messages.append({"role": "assistant", "content": response.content})
+            return FinalState(
+                messages=working_messages,
+                total_input_tokens=total_input,
+                total_output_tokens=total_output,
+                turn_count=turn,
+                final_content=response.content,
+            )
+
+        elif response.stop_reason == "tool_use":
+            working_messages.append({"role": "assistant", "content": response.content})
+            tool_results = []
+            for block in response.content:
+                if getattr(block, "type", None) == "tool_use":
+                    result = tool_executor(block.name, dict(block.input))
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+            working_messages.append({"role": "user", "content": tool_results})
+            continue
+
+        else:
+            raise UnexpectedStopReason(
+                f"Turn {turn}: unexpected stop_reason '{response.stop_reason}'"
+            )
